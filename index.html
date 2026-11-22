@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="위키백과·나무위키 인물 문서를 붙여넣으면 이력서, MBTI, 성격 장단점, 성공·실패 요인, 인생 육각형을 분석합니다. 이용자 본인의 Claude 또는 Gemini API 키로 동작합니다.">
+<title>위인 분석 카드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 문서 보관함의 인물 파일. 입력 패널 위, 결과는 서류철처럼 섹션이 이어지고 넓은 화면에서 2열 */
+:root{
+  --bg:#eef1f4; --paper:#fbfcfd; --ink:#1b2430; --muted:#5b6675; --line:#d5dbe3;
+  --accent:#2c4a7a; --accent-soft:#e1e8f3; --seal:#a8322d; --good:#2f7a52; --bad:#b0452f; --warn:#8a6a12;
+  --f-display:"Gowun Batang","Noto Serif KR",serif;
+  --f-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161c; --paper:#1a2029; --ink:#e4e9f0; --muted:#9aa5b4; --line:#2e3744;
+  --accent:#8fb0e6; --accent-soft:#223149; --seal:#e0756d; --good:#6cc596; --bad:#ec8a72; --warn:#d9b552; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161c; --paper:#1a2029; --ink:#e4e9f0; --muted:#9aa5b4; --line:#2e3744;
+  --accent:#8fb0e6; --accent-soft:#223149; --seal:#e0756d; --good:#6cc596; --bad:#ec8a72; --warn:#d9b552; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.65}
+.wrap{max-width:1080px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:20px}
+header h1{font-family:var(--f-display);font-size:clamp(26px,4vw,36px);margin:0;text-wrap:balance;letter-spacing:-.01em}
+header p{margin:6px 0 0;color:var(--muted);max-width:64ch}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:18px}
+label.lbl{display:block;font-size:12px;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+textarea{width:100%;min-height:180px;resize:vertical;border:1px solid var(--line);border-radius:4px;padding:12px;background:var(--bg);color:var(--ink);font:14px/1.6 var(--f-body)}
+textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+button{font:500 14px var(--f-body);border-radius:4px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+button:disabled{opacity:.5;cursor:default}
+input#who,select#lang{font:14px var(--f-body);border:1px solid var(--line);border-radius:4px;padding:9px 12px;background:var(--bg);color:var(--ink)}
+input#who{flex:1 1 200px;min-width:0}
+a.btn{font:500 14px var(--f-body);border-radius:4px;padding:9px 16px;border:1px solid var(--accent);color:var(--accent);text-decoration:none;white-space:nowrap}
+a.btn:focus-visible,input#who:focus,select#lang:focus{outline:2px solid var(--accent);outline-offset:2px}
+.hint{margin:8px 0 0;font-size:13px;color:var(--muted)}
+ul.quotes .ko{color:var(--muted);font-size:12.5px}
+details.trans{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+details.trans summary{cursor:pointer;color:var(--accent);font-size:14px}
+.trans-out{white-space:pre-wrap;margin-top:10px;max-height:420px;overflow:auto;font-size:14px}
+fieldset.mode{border:0;padding:0;margin:0 0 16px;display:flex;flex-wrap:wrap;gap:8px 20px}
+fieldset.mode legend{padding:0;width:100%}
+fieldset.mode label{display:flex;gap:6px;align-items:center;cursor:pointer}
+fieldset.mode input{accent-color:var(--accent)}
+.meta{font:12px var(--f-mono);color:var(--muted)}
+.status{font-size:14px;color:var(--muted)}
+.status.err{color:var(--bad)}
+.banner{display:flex;gap:10px;align-items:baseline;padding:10px 14px;border:1px dashed var(--line);border-radius:4px;color:var(--muted);font-size:13px}
+.stamp{font:700 11px var(--f-mono);color:var(--seal);border:1.5px solid var(--seal);padding:1px 6px;border-radius:3px;letter-spacing:.08em;white-space:nowrap}
+/* result */
+.file-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:flex-end;border-bottom:2px solid var(--ink);padding-bottom:12px}
+.file-head h2{font-family:var(--f-display);font-size:clamp(28px,5vw,42px);margin:0;line-height:1.2}
+.file-head .life{font:15px var(--f-mono);color:var(--muted)}
+.summary{margin:12px 0 0;max-width:70ch}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.span2{grid-column:1/-1}
+@media (max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+section.card{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:18px;min-width:0}
+section.card h3{font-family:var(--f-display);font-size:20px;margin:0 0 12px;display:flex;gap:10px;align-items:baseline}
+section.card h3 .no{font:500 12px var(--f-mono);color:var(--seal)}
+h4{font-size:12px;letter-spacing:.06em;color:var(--muted);margin:16px 0 6px;font-weight:500}
+dl.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 16px;margin:0}
+dl.kv dt{color:var(--muted);font-size:13px}
+dl.kv dd{margin:0}
+ul.plain{margin:0;padding-left:1.1em}
+ul.plain li{margin:2px 0}
+.tl{display:grid;gap:0;margin:0;padding:0;list-style:none;border-left:2px solid var(--line);margin-left:4px}
+.tl li{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;padding:5px 0 5px 14px;position:relative}
+.tl li::before{content:"";position:absolute;left:-6px;top:13px;width:10px;height:10px;border-radius:50%;background:var(--paper);border:2px solid var(--accent)}
+.tl .yr{font:500 13px var(--f-mono);color:var(--accent);font-variant-numeric:tabular-nums}
+.none{color:var(--muted);font-style:italic;font-size:14px}
+.mbti-type{font:700 48px/1 var(--f-mono);letter-spacing:.06em;color:var(--accent)}
+.pill{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid currentColor;vertical-align:middle}
+.c-low{color:var(--bad)} .c-mid{color:var(--warn)} .c-high{color:var(--good)}
+.axis{display:grid;grid-template-columns:28px minmax(0,1fr) 28px;gap:8px;align-items:center;margin-top:10px}
+.axis .l,.axis .r{font:700 14px var(--f-mono);text-align:center}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line)}
+.bar span{display:block;height:100%}
+.axis-note{grid-column:2;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.axis-note b{font:500 12px var(--f-mono);color:var(--ink)}
+.trait{padding:10px 0;border-top:1px solid var(--line)}
+.trait:first-of-type{border-top:0}
+.trait strong{display:block}
+.trait .ev{font-size:13px;color:var(--muted)}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+@media (max-width:560px){.cols{grid-template-columns:minmax(0,1fr)}}
+.tag-good{color:var(--good)} .tag-bad{color:var(--bad)}
+.ratio{margin:4px 0 8px}
+.ratio .big{font:500 22px var(--f-mono)}
+.verdict{font-family:var(--f-display);font-size:22px;font-weight:700}
+.hex-wrap{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:center}
+@media (max-width:760px){.hex-wrap{grid-template-columns:minmax(0,1fr)}}
+.hex-wrap svg{width:100%;max-width:440px;height:auto;display:block;margin:0 auto}
+table.scores{width:100%;border-collapse:collapse;font-size:14px}
+table.scores td{padding:7px 4px;border-top:1px solid var(--line);vertical-align:top}
+table.scores td.s{font:500 15px var(--f-mono);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.scores .why{color:var(--muted);font-size:13px}
+.rubric{font-size:13px;color:var(--muted)}
+.rubric summary{cursor:pointer;color:var(--accent)}
+.rubric dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0}
+.rubric .rb{margin-top:10px}
+.rubric dt{font:12px var(--f-mono)}
+ul.quotes{margin:4px 0 0;padding-left:1em;font-size:13px;color:var(--ink)}
+ul.quotes li{margin:2px 0}
+ul.quotes li.miss{color:var(--muted);text-decoration:line-through}
+ul.quotes .flag{color:var(--bad);text-decoration:none;display:inline-block;font-size:12px}
+td.s .est{font:11px var(--f-body);color:var(--warn)}
+.total{margin:4px 0 0;text-align:center}
+.total .big{font:500 30px var(--f-mono);color:var(--accent)}
+.rubric dt{color:var(--ink)}
+.rubric dd{margin:0}
+.warnlist li{color:var(--warn)}
+pre.raw{white-space:pre-wrap;word-break:break-word;font:12px var(--f-mono);max-height:240px;overflow:auto;background:var(--bg);padding:10px;border-radius:4px}
+@media (prefers-reduced-motion:no-preference){#result{transition:opacity .25s}}
+/* API 키 패널 */
+.keybox{border:1px solid var(--line);border-radius:4px;padding:12px 14px;background:var(--bg)}
+.keybox select,.keybox input[type=password],.keybox input[type=text]{font:14px var(--f-body);border:1px solid var(--line);border-radius:4px;padding:9px 12px;background:var(--paper);color:var(--ink)}
+.keybox input#apiKey{flex:1 1 240px;min-width:0;font-family:var(--f-mono)}
+.keybox select:focus,.keybox input:focus{outline:2px solid var(--accent);outline-offset:2px}
+.keybox .ok{color:var(--good)} .keybox a{color:var(--accent)}
+.keybox label.chk{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.keybox label.chk input{accent-color:var(--accent)}
+footer{color:var(--muted);font-size:12px;text-align:center}
+footer a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>위인 분석 카드</h1>
+    <p>위키백과(한국어·영어·일본어)나 나무위키 등에서 인물 문서 본문을 복사해 붙여넣으면 이력서, MBTI 추정, 성격 장단점, 성공·실패 요인, 인생 육각형을 정리합니다. 모든 분석은 붙여넣은 글만 근거로 하며, 글에 없는 내용은 "원문에 없음"으로 표시합니다. 일본어 등 외국어 본문도 결과는 한국어로 나오고, 근거 인용은 원문과 번역을 함께 보여 줍니다.</p>
+  </header>
+
+  <div class="panel">
+    <label class="lbl">0. AI 키 설정 (본인 키 사용)</label>
+    <div class="keybox">
+      <div class="row" style="margin-top:0">
+        <select id="provider" aria-label="AI 선택"><option value="gemini">Google Gemini</option><option value="claude">Anthropic Claude</option></select>
+        <input id="apiKey" type="password" placeholder="API 키를 붙여넣으세요" autocomplete="off" spellcheck="false" aria-label="API 키">
+        <button type="button" id="showKey">보기</button>
+      </div>
+      <div class="row">
+        <label class="lbl" for="model" style="margin:0">모델</label>
+        <select id="model" aria-label="모델"></select>
+        <button type="button" id="testKey">키 확인</button>
+        <label class="chk"><input type="checkbox" id="rememberKey"> 이 기기에 키 기억하기</label>
+        <button type="button" id="forgetKey">키 지우기</button>
+      </div>
+      <p class="hint" id="keyHelp"></p>
+      <p class="hint">키는 이 사이트의 서버로 보내지 않습니다. 이 브라우저에서 선택한 AI 회사(Google 또는 Anthropic)로만 직접 전송되고, 사용 요금은 키 주인에게 청구됩니다. '기억하기'를 끄면 이 탭을 닫을 때 키가 지워집니다. 공용 컴퓨터에서는 기억하기를 켜지 마세요.</p>
+      <p class="hint" id="keyStatus" role="status"></p>
+    </div>
+    <fieldset class="mode" style="margin-top:14px">
+      <legend class="lbl">분석 대상</legend>
+      <label><input type="radio" name="mode" id="modeReal" value="real" checked> 실존 인물</label>
+      <label><input type="radio" name="mode" id="modeFic" value="fiction"> 가상 인물 (소설·애니메이션·만화·게임)</label>
+    </fieldset>
+    <label class="lbl" for="who">1. 인물 이름으로 문서 찾기</label>
+    <div class="row" style="margin-top:0">
+      <input id="who" type="text" placeholder="예: 세종대왕, 나폴레옹" autocomplete="off">
+      <select id="lang" aria-label="찾을 곳"><option value="ko">위키백과 한국어판</option><option value="en">위키백과 영어판</option><option value="ja">위키백과 일본어판</option><option value="namu">나무위키</option></select>
+      <a id="wikiLink" class="btn" href="https://ko.wikipedia.org/" target="_blank" rel="noopener">문서 열기</a>
+    </div>
+    <p class="hint">새 탭에서 문서가 열리면 본문을 전체 선택(Ctrl+A 또는 ⌘A)해 복사한 뒤 아래 칸에 붙여넣으세요. 나무위키 본문에는 팬 해석과 여담이 섞여 있어, 분석은 작중에서 일어난 일만 근거로 삼도록 지시합니다.</p>
+    <label class="lbl" for="src" style="margin-top:14px">2. 본문 붙여넣기</label>
+    <textarea id="src" placeholder="예: 이순신(李舜臣, 1545년 4월 28일 ~ 1598년 12월 16일)은 조선 중기의 무신이다..."></textarea>
+    <div class="row">
+      <button class="primary" id="go">분석하기</button>
+      <button id="stop" hidden>멈추기</button>
+      <button id="loadSample">예시 본문 넣기</button>
+      <button id="copyPrompt">분석 요청문 복사</button>
+      <button id="reset">새 인물 시작</button>
+      <span class="meta" id="count">0자</span>
+    </div>
+    <div class="row"><span class="status" id="status" role="status"></span></div>
+  </div>
+
+  <div id="result"></div>
+  <footer>AI 분석은 추정이며 틀릴 수 있습니다. 붙여넣은 본문과 키는 이 사이트에 저장되지 않습니다. 육각형 6요소 가중치 1:1:1:1:1:1.</footer>
+</div>
+
+<script>
+// 육각형 A안 (가중치 1:1:1:1:1:1). 채점 기준 문서: https://claude.ai/artifact/EW7XNZ3wzEQ2bGuMQdxckH
+const BANDS = ["1~2점","3~4점","5~6점","7~8점","9~10점"];
+const HEX_REAL = [
+  {key:"achievement", label:"업적", desc:"생전에 직접 이룬 구체적 결과물(작품, 발견, 제도, 전승, 건국 등)",
+   bands:["뚜렷한 결과물이 없거나 대부분 실패","지역·단체 안에서 인정받는 결과물 1개 수준","당대 국가 수준에서 알려진 결과물 여러 개","해당 분야의 판도를 바꾼 결과물, 본문에 별도 단락으로 서술","분야를 넘어 문명·국가 단위로 구조를 바꾼 결과물, 도입부에 핵심으로 명시"]},
+  {key:"influence", label:"영향력", desc:"사후 후대에 남긴 파급효과(계승자, 제도 존속, 학파, 기념)",
+   bands:["사후 언급되는 영향 거의 없음","제한된 분야·지역에서 일시적 영향","한 국가·분야에서 수십 년 이상 영향","여러 나라·분야에 영향, 후대 인물이 직접 계승을 밝힘","오늘날까지 제도·사상·문화의 기반으로 작동, '유산' 단락이 길고 구체적"]},
+  {key:"leadership", label:"리더십", desc:"사람·조직을 이끌고 결정을 내린 기록(직위, 지휘, 창립, 운동 주도)",
+   bands:["이끈 기록 없거나 지휘한 조직이 붕괴","소규모 집단을 이끈 기록, 성과 불분명","중간 규모 조직을 안정적으로 운영","대규모 조직·국가를 이끌고 위기에서 결단한 기록","국가·운동을 새로 세우거나 여러 차례 위기를 돌파하며 추종자를 만듦"]},
+  {key:"morality", label:"도덕성", desc:"수단의 정당성, 타인에 대한 해악, 청렴·신의",
+   bands:["학살·방조 등 중대한 해악이 본문에 명시","논란이 여러 건이고 비판이 주류","공과가 공존, 논란이 있으나 평가가 갈림","논란이 작고 청렴·원칙을 지킨 기록","자기 희생을 감수하며 원칙을 지킨 구체적 사례, 본문의 비판이 거의 없음"]},
+  {key:"relations", label:"인간관계", desc:"가족·동료·스승·제자·적과의 관계, 협력 사례",
+   bands:["고립, 배신·단절이 반복","갈등이 많고 가까운 관계가 적음","평범한 관계, 갈등과 협력이 비슷함","오래 간 동반자·제자, 협력으로 이룬 성과가 기록됨","넓은 인맥과 두터운 지지가 성공의 핵심으로 서술됨"]},
+  {key:"adversity", label:"역경 극복", desc:"가난·투옥·유배·질병·패배 등 역경의 크기와 그 뒤의 회복",
+   bands:["역경에 무너져 회복 기록 없음","역경 후 부분적으로만 회복","뚜렷한 역경 1회를 극복","큰 역경 여러 번을 극복하고 성과로 이어짐","생명·자유가 위태로운 역경을 넘어 생애 최대 성과를 냄"]}
+];
+// 가상 인물용: 기준 문서의 A안을 작품 속 기준으로 옮긴 임시안(추정)
+const HEX_FIC = [
+  {key:"achievement", label:"작중 업적", desc:"작품 속에서 직접 이룬 결과(목표 달성, 승리, 발견, 구출, 창설 등)",
+   bands:["뚜렷한 결과가 없거나 대부분 실패","주변 인물·작은 집단 안에서 인정받는 결과 1개 수준","작중 세계의 한 지역·조직에 알려진 결과 여러 개","이야기의 판도를 바꾼 결과, 본문에 별도 단락으로 서술","작중 세계 전체의 구조를 바꾼 결과, 인물 소개의 핵심으로 명시"]},
+  {key:"influence", label:"작중 영향력", desc:"다른 등장인물과 작중 세계에 남긴 파급효과(계승자, 따르는 인물, 남은 제도·전설)",
+   bands:["다른 인물에게 남긴 영향 거의 없음","몇몇 인물·한 에피소드에 일시적 영향","주요 인물 여럿이나 한 조직에 오래 영향","작중 세계 여러 세력에 영향, 다른 인물이 직접 계승·추종을 밝힘","이야기 전체의 전제나 결말을 바꿀 만큼 영향, 관련 서술이 길고 구체적"]},
+  {key:"leadership", label:"리더십", desc:"작중에서 사람·조직을 이끌고 결정을 내린 장면(직위, 지휘, 창설, 동료 규합)",
+   bands:["이끈 장면 없거나 이끈 집단이 붕괴","소규모 무리를 이끈 장면, 성과 불분명","중간 규모 조직·팀을 안정적으로 운영","큰 조직·세력을 이끌고 위기에서 결단한 장면","세력을 새로 세우거나 여러 차례 위기를 돌파하며 추종자를 만듦"]},
+  {key:"morality", label:"작중 도덕성", desc:"작품 세계의 기준에서 본 수단의 정당성, 타인에 대한 해악, 신의",
+   bands:["학살·배신 등 중대한 악행이 본문에 명시","악행·논란이 여러 건이고 작중 평가도 부정적","선악이 공존하고 작중 평가가 갈림","작은 흠은 있으나 원칙과 신의를 지킨 장면","자기 희생을 감수하며 원칙을 지킨 구체적 장면, 비판이 거의 없음"]},
+  {key:"relations", label:"인간관계", desc:"가족·동료·스승·제자·라이벌·적과의 관계, 협력 장면",
+   bands:["고립, 배신·단절이 반복","갈등이 많고 가까운 관계가 적음","평범한 관계, 갈등과 협력이 비슷함","오래 간 동료·제자, 협력으로 이룬 성과가 서술됨","넓은 동료 관계와 두터운 신뢰가 활약의 핵심으로 서술됨"]},
+  {key:"adversity", label:"역경 극복", desc:"상실·패배·부상·감금·추방 등 작중 역경의 크기와 그 뒤의 회복",
+   bands:["역경에 무너져 회복 장면 없음","역경 후 부분적으로만 회복","뚜렷한 역경 1회를 극복","큰 역경 여러 번을 극복하고 성과로 이어짐","생명·자유가 위태로운 역경을 넘어 작중 최대의 성과를 냄"]}
+];
+let MODE = "real", HEX = HEX_REAL;
+function setMode(m){ MODE = m === "fiction" ? "fiction" : "real"; HEX = MODE === "fiction" ? HEX_FIC : HEX_REAL; }
+const normalize = s => String(s).normalize("NFKC").replace(/\s+/g,"").replace(/[“”"'‘’「」『』]/g,"");
+const isForeign = s => /[\u3040-\u30ff]/.test(s) || ((String(s).match(/[\uac00-\ud7a3]/g)||[]).length < String(s).length * 0.15);
+function quoteFound(q, src){ if (!src) return null; const n = normalize(q); return n.length > 0 && normalize(src).includes(n); }
+const MAX_CHARS = 60000;
+
+function buildPrompt(text){
+  const fic = MODE === "fiction";
+  return (fic
+? `너는 소설·애니메이션·만화·게임 등장인물 분석가다. 아래 [원문]은 사용자가 위키백과나 나무위키에서 복사한 가상 인물 문서다.
+가상 인물 규칙:
+- 실제 역사가 아니라 작품 속 서술(작중 사실)을 기준으로 분석한다. "출생·사망"은 작중 설정 기준이다.
+- 나무위키 등에는 팬 해석, 여담, 제작 비화, 성우·배우 정보가 섞여 있다. 인물 분석 근거로는 작중에서 일어난 일만 쓰고, 해석·여담은 근거로 쓰지 않는다.
+- 작품·매체에 따라 설정이 다르면(원작과 애니메이션 등) 어느 쪽 서술인지 밝히고, 갈리면 uncertain에 적는다.
+- 이력서: basic에는 등장 작품, 소속·세계관, 작중 나이·신분 같은 항목을 원문에 있는 것만 넣는다. education에는 작중 배경(출신, 수련, 소속 학교 등), career에는 작중 역할·직위, timeline의 year에는 작중 시점(권·화·시즌·작중 연도 등)을 쓴다.
+- lifespan에는 작중 생몰·나이 정보가 있으면 쓰고 없으면 null.
+`
+: `너는 역사 인물 분석가다. 아래 [원문]은 사용자가 위키백과에서 복사한 인물 문서다.
+`) + `규칙:
+- 오직 [원문]에 적힌 내용만 근거로 삼는다. 너의 배경지식으로 사실을 보충하지 않는다.
+- 원문에 없는 항목은 지어내지 말고 빈 배열이나 null로 두고, uncertain에 무엇이 없었는지 적는다.
+- 근거(evidence)는 원문의 사실을 짧게(40자 안팎) 요약하거나 인용한다.
+- MBTI와 육각형 점수는 추정이다. 원문 근거가 약하면 신뢰도를 "낮음"으로 한다.
+- 모든 비율은 합이 10인 정수 두 개로 쓴다(예: [7,3]은 7 대 3).
+- 원문이 일본어·영어 등 한국어가 아니어도, 인용(quotes의 text)을 뺀 모든 문장은 한국어로 쓴다. 인명·지명·작품명은 한국어 표기 뒤 괄호에 원문 표기를 붙인다(예: 오다 노부나가(織田信長)).
+- 모든 문장은 한국어로 쓴다.
+육각형 6요소(가중치 모두 같음)와 1~10점 채점 기준:
+${HEX.map(h=>`- ${h.key}(${h.label}): ${h.desc}\n${h.bands.map((b,i)=>`  ${BANDS[i]}: ${b}`).join("\n")}`).join("\n")}
+채점 절차:
+1. 요소별로 원문 문장을 원문 언어 그대로, 글자 그대로 인용해 quotes의 text에 모은다. 번역하거나 요약하지 않는다(인용은 원문과 글자가 같아야 한다). 원문이 한국어가 아니면 ko에 한국어 번역을 붙이고, 한국어면 ko는 생략한다.
+2. 인용문을 위 구간에 맞춰 구간을 고르고, 구간 안에서 근거가 더 강하면 높은 점수를 준다.
+3. 인용이 점수를 직접 뒷받침하지 않고 정황으로 판단했으면 estimated를 true로 하고 reason에 판단 이유를 한 줄 쓴다.
+4. 판단할 근거가 원문에 없으면 score를 null로 둔다(근거 부족). 특히 역경이 원문에 없으면 낮은 점수를 주지 말고 null로 둔다.
+5. 도덕성은 원문의 평가를 따르되 평가가 갈리면 5~6점 구간을 쓴다.
+
+아래 형식의 JSON 하나만 출력한다. 다른 글은 쓰지 않는다.
+{
+ "name": "한국어 표기 (원문 표기)",
+ "sourceLanguage": "원문의 주 언어(한국어, 일본어, 영어 등)",
+ "lifespan": "생몰년, 없으면 null",
+ "summary": "한두 문장 요약",
+ "resume": {
+   "basic": [{"label":"출생","value":"..."},{"label":"사망","value":"..."},{"label":"국적·시대","value":"..."}],
+   "education": ["..."],
+   "career": ["직위·역할 (연도)"],
+   "timeline": [{"year":"1592","event":"..."}]
+ },
+ "mbti": {
+   "type": "ISTJ",
+   "confidence": "낮음|보통|높음",
+   "axes": [
+     {"pair":"E/I","ratio":[3,7],"evidence":"..."},
+     {"pair":"S/N","ratio":[6,4],"evidence":"..."},
+     {"pair":"T/F","ratio":[7,3],"evidence":"..."},
+     {"pair":"J/P","ratio":[8,2],"evidence":"..."}
+   ],
+   "rationale": "종합 근거 2~3문장"
+ },
+ "personality": {
+   "strengths": [{"trait":"...","evidence":"..."}],
+   "weaknesses": [{"trait":"...","evidence":"..."}]
+ },
+ "outcome": {
+   "verdict": "성공|실패|성공과 실패가 섞임",
+   "ratio": [8,2],
+   "successFactors": [{"factor":"...","evidence":"..."}],
+   "failureFactors": [{"factor":"...","evidence":"..."}]
+ },
+ "hexagon": [
+${HEX.map(h=>`   {"key":"${h.key}","score":7,"quotes":[{"text":"원문 언어 그대로 인용","ko":"한국어 번역"}],"estimated":false,"reason":"구간 판단 이유 한 줄"}`).join(",\n")}
+ ],
+ "uncertain": ["원문에 없거나 불확실한 점"]
+}
+outcome.ratio는 [성공 요인 비중, 실패 요인 비중]이다. axes의 ratio는 [앞 글자, 뒷 글자] 성향 비중이다.
+
+[원문]
+${text}`;
+}
+
+const SAMPLE_TEXT = `이순신(李舜臣, 1545년 4월 28일 ~ 1598년 12월 16일)은 조선 중기의 무신이다. 한성 건천동에서 태어났다. 1576년 식년 무과에 병과로 급제하여 함경도 동구비보 권관으로 관직을 시작했다. 이후 북방 국경에서 근무했으나 1587년 녹둔도 전투 패배의 책임을 지고 백의종군했다. 1591년 류성룡의 천거로 전라좌도 수군절도사에 임명되어 거북선을 건조하고 군비를 정비했다. 1592년 임진왜란이 일어나자 옥포, 사천, 한산도 등에서 연이어 승리했고, 1593년 삼도수군통제사가 되었다. 1597년 조정의 출전 명령을 따르지 않았다는 이유 등으로 파직되어 투옥되었다가 풀려나 다시 백의종군했다. 같은 해 원균이 이끈 조선 수군이 칠천량에서 대패하자 통제사로 복귀하여, 남은 13척의 배로 명량에서 일본 수군을 격파했다. 1598년 노량해전에서 퇴각하는 일본군을 추격하다 총탄에 맞아 전사했다. 진중에서 쓴 일기가 《난중일기》로 전한다. 사후 충무공의 시호를 받았다.`;
+
+const SAMPLE_RESULT = {
+  name:"이순신 (李舜臣)", lifespan:"1545년 4월 28일 ~ 1598년 12월 16일",
+  summary:"조선 중기의 무신으로, 임진왜란 때 수군을 이끌고 옥포·한산도·명량 등에서 승리했으며 노량해전에서 전사했다.",
+  resume:{
+    basic:[{label:"출생",value:"1545년 4월 28일, 한성 건천동"},{label:"사망",value:"1598년 12월 16일, 노량해전 중 총탄에 맞아 전사"},{label:"국적·시대",value:"조선 중기"},{label:"시호",value:"충무"}],
+    education:[],
+    career:["함경도 동구비보 권관 (1576)","북방 국경 근무 (연도 미상)","전라좌도 수군절도사 (1591)","삼도수군통제사 (1593, 1597 복귀)"],
+    timeline:[
+      {year:"1545",event:"한성 건천동에서 출생"},
+      {year:"1576",event:"식년 무과 병과 급제, 동구비보 권관으로 출사"},
+      {year:"1587",event:"녹둔도 전투 패배 책임으로 백의종군"},
+      {year:"1591",event:"류성룡 천거로 전라좌수사 임명, 거북선 건조"},
+      {year:"1592",event:"임진왜란 발발, 옥포·사천·한산도 등에서 승리"},
+      {year:"1593",event:"삼도수군통제사 임명"},
+      {year:"1597",event:"파직·투옥 후 백의종군, 통제사 복귀, 명량에서 13척으로 승리"},
+      {year:"1598",event:"노량해전에서 전사"}
+    ]},
+  mbti:{type:"ISTJ",confidence:"낮음",axes:[
+      {pair:"E/I",ratio:[4,6],evidence:"진중에서 일기를 꾸준히 쓴 기록 외에 사교 성향 서술은 없음"},
+      {pair:"S/N",ratio:[7,3],evidence:"거북선 건조와 군비 정비 등 구체적 준비 중심"},
+      {pair:"T/F",ratio:[7,3],evidence:"조정 명령보다 전황 판단을 앞세운 것으로 보이는 파직 사유"},
+      {pair:"J/P",ratio:[8,2],evidence:"전쟁 전 미리 군비를 정비한 계획적 행동"}],
+    rationale:"원문은 행적 위주라 성격 서술이 거의 없다. 사전 준비와 일관된 행동은 S·J 쪽을 시사하지만, 내향·외향을 가를 근거는 매우 약하다."},
+  personality:{
+    strengths:[{trait:"철저한 사전 대비",evidence:"전라좌수사 임명 후 거북선 건조와 군비 정비"},{trait:"불리한 상황에서의 결단력",evidence:"칠천량 대패 후 남은 13척으로 명량에서 승리"},{trait:"재기하는 회복력",evidence:"두 차례 백의종군 뒤 다시 지휘관으로 복귀"}],
+    weaknesses:[{trait:"조정과의 마찰",evidence:"출전 명령을 따르지 않았다는 이유 등으로 파직·투옥"},{trait:"전투 책임에 따른 좌천 경험",evidence:"녹둔도 전투 패배 책임으로 백의종군 (원문만으로는 개인 과실 여부 불명)"}]},
+  outcome:{verdict:"성공",ratio:[8,2],
+    successFactors:[{factor:"전쟁 전 준비",evidence:"1591년부터 거북선 건조와 군비 정비"},{factor:"연속된 해전 승리",evidence:"옥포·사천·한산도·명량 승리"},{factor:"인재를 알아본 후원자",evidence:"류성룡의 천거로 전라좌수사 임명"}],
+    failureFactors:[{factor:"조정과의 갈등",evidence:"1597년 파직과 투옥"},{factor:"최후의 전투에서 전사",evidence:"노량해전에서 추격 중 총탄에 맞음"}]},
+  hexagon:[
+    {key:"achievement",score:8,estimated:false,reason:"전쟁의 판도에 영향을 준 해전 승리가 여러 번 서술됨(7~8점 구간)",
+     quotes:["1592년 임진왜란이 일어나자 옥포, 사천, 한산도 등에서 연이어 승리했고","남은 13척의 배로 명량에서 일본 수군을 격파했다"]},
+    {key:"influence",score:5,estimated:true,reason:"후대 영향을 직접 서술한 문장은 없고 일기 전승과 시호만 있음",
+     quotes:["진중에서 쓴 일기가 《난중일기》로 전한다","사후 충무공의 시호를 받았다"]},
+    {key:"leadership",score:8,estimated:false,reason:"수군 전체를 지휘하고 대패 뒤 위기에서 결단한 기록(7~8점 구간)",
+     quotes:["1593년 삼도수군통제사가 되었다","통제사로 복귀하여, 남은 13척의 배로 명량에서 일본 수군을 격파했다"]},
+    {key:"morality",score:6,estimated:true,reason:"해악 기록은 없고 명령 불복 논란 1건, 그 동기는 원문에 없음",
+     quotes:["조정의 출전 명령을 따르지 않았다는 이유 등으로 파직되어 투옥되었다가"]},
+    {key:"relations",score:5,estimated:false,reason:"후원자의 천거와 조정과의 갈등이 함께 나옴(5~6점 구간)",
+     quotes:["1591년 류성룡의 천거로 전라좌도 수군절도사에 임명되어","조정의 출전 명령을 따르지 않았다는 이유 등으로 파직되어"]},
+    {key:"adversity",score:9,estimated:false,reason:"투옥과 두 번의 백의종군 뒤 복귀해 명량에서 승리(9~10점 구간)",
+     quotes:["1587년 녹둔도 전투 패배의 책임을 지고 백의종군했다","풀려나 다시 백의종군했다","남은 13척의 배로 명량에서 일본 수군을 격파했다"]}],
+  uncertain:["학력과 가족 관계는 원문에 없음","성격을 직접 묘사한 서술이 없어 MBTI 근거가 약함","1597년 명령 불복의 구체적 경위와 동기는 원문에 없음"]
+};
+
+const $ = s => document.querySelector(s);
+const srcEl = $("#src"), goBtn = $("#go"), stopBtn = $("#stop"), statusEl = $("#status"), resultEl = $("#result");
+let sample = null, ctl = null;
+
+// ===== BYOK: 이용자 본인 키로 Claude 또는 Gemini를 브라우저에서 직접 호출 =====
+const PROVIDERS = {
+  gemini: {
+    models: [["gemini-3.5-flash","Gemini 3.5 Flash"],["gemini-3.1-flash-lite","Gemini 3.1 Flash-Lite (저렴)"],["gemini-3.1-pro-preview","Gemini 3.1 Pro (미리보기)"]],
+    help: '키 받기: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에서 "API 키 만들기". 무료 사용 가능 여부와 한도는 <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noopener">Google 요금 안내</a>를 확인하세요. 무료 등급 입력은 Google의 서비스 개선에 쓰일 수 있다고 Google 약관에 적혀 있습니다. \'키 확인\'을 누르면 이 키로 쓸 수 있는 모델 목록을 불러옵니다.'
+  },
+  claude: {
+    models: [["claude-sonnet-5-5","Claude Sonnet 5.5"],["claude-haiku-5-5","Claude Haiku 5.5 (저렴)"],["claude-opus-5-5","Claude Opus 5.5 (고가)"]],
+    help: '키 받기: <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic Console</a>에서 키 발급. 유료 크레딧이 있어야 동작합니다. Claude.ai 구독과는 별개입니다.'
+  }
+};
+const KEY_STORE = "byok_v1";
+function loadKeyCfg(){
+  for (const st of [()=>sessionStorage, ()=>localStorage]){
+    try{ const v = JSON.parse(st().getItem(KEY_STORE) || "null"); if (v) return v; }catch(e){}
+  }
+  return null;
+}
+function saveKeyCfg(){
+  const cfg = {provider: $("#provider").value, key: $("#apiKey").value.trim(), model: $("#model").value};
+  const remember = $("#rememberKey").checked;
+  try{ sessionStorage.setItem(KEY_STORE, JSON.stringify(cfg)); }catch(e){}
+  try{ if (remember) localStorage.setItem(KEY_STORE, JSON.stringify(cfg)); else localStorage.removeItem(KEY_STORE); }catch(e){}
+}
+function fillModels(list, keep){
+  const sel = $("#model"); sel.replaceChildren();
+  for (const [v,l] of list) sel.append(el("option",{value:v}, l));
+  if (keep && list.some(([v])=>v===keep)) sel.value = keep;
+  else if (keep){ sel.append(el("option",{value:keep}, keep)); sel.value = keep; }
+}
+function onProvider(keepModel){
+  const p = $("#provider").value;
+  fillModels(PROVIDERS[p].models, keepModel);
+  $("#keyHelp").innerHTML = PROVIDERS[p].help;
+  $("#apiKey").placeholder = p === "claude" ? "sk-ant-로 시작하는 Anthropic API 키" : "AIza로 시작하는 Gemini API 키";
+}
+function keyStatus(t, err){ const k = $("#keyStatus"); k.textContent = t; k.classList.toggle("status", true); k.classList.toggle("err", !!err); }
+
+function httpErr(status, body){
+  let msg = "";
+  try{ const j = JSON.parse(body); msg = (j.error && (j.error.message || j.error.type)) || ""; }catch(e){ msg = String(body||"").slice(0,200); }
+  const code = status === 401 || status === 403 ? "bad_key" : status === 429 ? "rate_limited" : status === 413 ? "prompt_too_large" : status === 404 ? "bad_model" : (status === 400 && /api key|API_KEY/i.test(msg)) ? "bad_key" : status === 400 && /credit|billing/i.test(msg) ? "billing" : "http";
+  return {code, status, detail: msg};
+}
+
+async function readSSE(res, onEvent){
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let buf = "";
+  for(;;){
+    const {done, value} = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, {stream:true});
+    let i;
+    while ((i = buf.search(/\r?\n\r?\n/)) >= 0){
+      const chunk = buf.slice(0, i); buf = buf.slice(i).replace(/^\r?\n\r?\n/, "");
+      const data = chunk.split(/\r?\n/).filter(l=>l.startsWith("data:")).map(l=>l.slice(5).trim()).join("\n");
+      if (data && data !== "[DONE]"){ try{ onEvent(JSON.parse(data)); }catch(e){ if (e && e.code) throw e; } }
+    }
+  }
+}
+
+async function callAI(prompt, {signal, onText, json} = {}){
+  const p = $("#provider").value, key = $("#apiKey").value.trim(), model = $("#model").value;
+  if (!key) throw {code:"no_key"};
+  let text = "", truncated = false, res;
+  try{
+    if (p === "claude"){
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST", signal,
+        headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body: JSON.stringify({model, max_tokens:16000, stream:true, messages:[{role:"user", content:prompt}]})
+      });
+      if (!res.ok) throw httpErr(res.status, await res.text());
+      await readSSE(res, ev=>{
+        if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta"){ text += ev.delta.text; onText && onText({text}); }
+        else if (ev.type === "message_delta" && ev.delta && ev.delta.stop_reason === "max_tokens") truncated = true;
+        else if (ev.type === "message_delta" && ev.delta && ev.delta.stop_reason === "refusal") throw {code:"refused"};
+        else if (ev.type === "error") throw {code: ev.error && ev.error.type === "overloaded_error" ? "overloaded" : "http", detail: ev.error && ev.error.message};
+      });
+    } else {
+      const cfg = {};
+      if (json) cfg.responseMimeType = "application/json";
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+        method:"POST", signal,
+        headers:{"content-type":"application/json","x-goog-api-key":key},
+        body: JSON.stringify({contents:[{role:"user", parts:[{text:prompt}]}], generationConfig: cfg})
+      });
+      if (!res.ok) throw httpErr(res.status, await res.text());
+      await readSSE(res, ev=>{
+        if (ev.promptFeedback && ev.promptFeedback.blockReason) throw {code:"refused"};
+        const c = ev.candidates && ev.candidates[0];
+        if (!c) return;
+        const parts = (c.content && c.content.parts) || [];
+        for (const part of parts) if (part.text && !part.thought){ text += part.text; }
+        if (parts.length) onText && onText({text});
+        if (c.finishReason === "MAX_TOKENS") truncated = true;
+        if (c.finishReason === "SAFETY" || c.finishReason === "PROHIBITED_CONTENT") throw {code:"refused"};
+      });
+    }
+  }catch(e){
+    if (e && e.name === "AbortError") throw {code:"cancelled", text};
+    if (e && e.code) throw Object.assign(e, {text});
+    throw {code:"network", text, detail: String(e && e.message || e)};
+  }
+  if (!text) throw {code:"empty_completion"};
+  return {text, truncated};
+}
+function parseJsonLoose(t){
+  let s = String(t).trim().replace(/^```(?:json)?\s*/i,"").replace(/```\s*$/,"");
+  try{ return JSON.parse(s); }catch(e){}
+  const a = s.indexOf("{"), b = s.lastIndexOf("}");
+  if (a >= 0 && b > a){ try{ return JSON.parse(s.slice(a, b+1)); }catch(e){} }
+  throw {code:"invalid_json"};
+}
+// 기존 코드가 쓰던 sample(prompt, opts) / sample.json(prompt, opts) 형태를 그대로 맞춘다
+const sampleFn = (prompt, opts)=> callAI(prompt, opts);
+sampleFn.json = async (prompt, opts)=>{ const {text, truncated} = await callAI(prompt, Object.assign({}, opts, {json:true})); try{ return parseJsonLoose(text); }catch(e){ throw {code: truncated ? "truncated" : "invalid_json"}; } };
+
+async function testKey(){
+  const p = $("#provider").value, key = $("#apiKey").value.trim();
+  if (!key){ keyStatus("먼저 키를 붙여넣어 주세요.", true); return; }
+  keyStatus("키를 확인하는 중입니다...");
+  try{
+    if (p === "gemini"){
+      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {headers:{"x-goog-api-key":key}});
+      if (!res.ok) throw httpErr(res.status, await res.text());
+      const j = await res.json();
+      const list = (j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes("generateContent") && /gemini/i.test(m.name) && !/embedding|image|tts|audio|live|vision/i.test(m.name))
+        .map(m=>[m.name.replace(/^models\//,""), (m.displayName||m.name.replace(/^models\//,""))]);
+      if (list.length){ const cur = $("#model").value; fillModels(list, list.some(([v])=>v===cur) ? cur : null); }
+      keyStatus(`키가 확인되었습니다. 쓸 수 있는 모델 ${list.length}개를 불러왔습니다.`);
+    } else {
+      const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {headers:{"x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"}});
+      if (!res.ok) throw httpErr(res.status, await res.text());
+      const j = await res.json();
+      const list = (j.data||[]).map(m=>[m.id, m.display_name || m.id]);
+      if (list.length){ const cur = $("#model").value; fillModels(list, list.some(([v])=>v===cur) ? cur : list[0][0]); }
+      keyStatus(`키가 확인되었습니다. 쓸 수 있는 모델 ${list.length}개를 불러왔습니다. 크레딧 잔액은 여기서 확인되지 않습니다.`);
+    }
+    saveKeyCfg();
+  }catch(e){ keyStatus(ERR[e && e.code] ? ERR[e.code] + (e.detail ? ` (${e.detail})` : "") : "키를 확인하지 못했습니다. 인터넷 연결을 확인해 주세요.", true); }
+}
+
+function el(tag, attrs, ...kids){
+  const n = document.createElement(tag);
+  if (attrs) for (const [k,v] of Object.entries(attrs)){
+    if (v == null) continue;
+    if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v);
+  }
+  for (const k of kids.flat(Infinity)) if (k != null && k !== false) n.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return n;
+}
+const arr = v => Array.isArray(v) ? v : [];
+const str = v => (v == null || v === "") ? "" : String(v);
+function none(t){ return el("p",{class:"none"}, t || "원문에 없음"); }
+function ratioOf(r){
+  let a = Number(arr(r)[0]), b = Number(arr(r)[1]);
+  if (!isFinite(a) || !isFinite(b) || a+b <= 0) return null;
+  const s = a+b; a = Math.round(a/s*10); return [a, 10-a];
+}
+function confClass(c){ return c === "높음" ? "c-high" : c === "보통" ? "c-mid" : "c-low"; }
+
+function card(no, title, ...body){
+  return el("section",{class:"card"}, el("h3",null, el("span",{class:"no"},no), title), ...body);
+}
+
+function renderResume(r){
+  r = r || {};
+  const basic = arr(r.basic).filter(x=>x && x.value);
+  const tl = arr(r.timeline).filter(x=>x && x.event);
+  const fic = MODE === "fiction";
+  return card("01", fic ? "인물 이력서 (작중 기준)" : "인물 이력서",
+    basic.length ? el("dl",{class:"kv"}, basic.map(b=>[el("dt",{text:str(b.label)}), el("dd",{text:str(b.value)})])) : none(),
+    el("h4",{text: fic ? "작중 배경 (출신·수련·소속)" : "학력"}),
+    arr(r.education).length ? el("ul",{class:"plain"}, arr(r.education).map(x=>el("li",{text:str(x)}))) : none(),
+    el("h4",{text: fic ? "작중 역할·직위" : "경력"}),
+    arr(r.career).length ? el("ul",{class:"plain"}, arr(r.career).map(x=>el("li",{text:str(x)}))) : none(),
+    el("h4",{text: fic ? "작중 사건 연표" : "주요 업적 연표"}),
+    tl.length ? el("ul",{class:"tl"}, tl.map(t=>el("li",null, el("span",{class:"yr",text:str(t.year)||(fic?"시점 미상":"연도 미상")}), el("span",{text:str(t.event)})))) : none()
+  );
+}
+
+function renderMbti(m){
+  m = m || {};
+  const axes = arr(m.axes).map(a=>{
+    const p = str(a.pair).split("/"); const r = ratioOf(a.ratio);
+    if (p.length !== 2 || !r) return null;
+    return el("div",{class:"axis"},
+      el("span",{class:"l",text:p[0]}),
+      el("div",{class:"bar","aria-label":`${p[0]} ${r[0]} 대 ${p[1]} ${r[1]}`},
+        el("span",{style:`width:${r[0]*10}%;background:var(--accent)`}),
+        el("span",{style:`width:${r[1]*10}%;background:var(--accent-soft)`})),
+      el("span",{class:"r",text:p[1]}),
+      el("div",{class:"axis-note"}, el("b",{text:`${p[0]} ${r[0]} 대 ${r[1]} ${p[1]}`}), el("span",{text:str(a.evidence)}))
+    );
+  }).filter(Boolean);
+  return card("02","MBTI 추정",
+    el("div",{class:"row",style:"margin-top:0"},
+      el("span",{class:"mbti-type",text:str(m.type)||"판단 불가"}),
+      el("span",{class:"pill "+confClass(m.confidence),text:"신뢰도 "+(str(m.confidence)||"낮음")})),
+    axes.length ? axes : none("축별 근거 없음"),
+    m.rationale ? el("p",{text:str(m.rationale)}) : null,
+    el("p",{class:"rubric",text:"MBTI는 본인이 검사한 결과가 아니라 원문 행적으로 추정한 것입니다."})
+  );
+}
+
+function traitList(items, key, cls){
+  items = arr(items).filter(x=>x && x[key]);
+  if (!items.length) return none();
+  return el("div",null, items.map(t=>el("div",{class:"trait"}, el("strong",{class:cls,text:str(t[key])}), el("span",{class:"ev",text:str(t.evidence)}))));
+}
+
+function renderPersonality(p){
+  p = p || {};
+  return card("03","성격 장단점",
+    el("div",{class:"cols"},
+      el("div",null, el("h4",{text:"장점"}), traitList(p.strengths,"trait","tag-good")),
+      el("div",null, el("h4",{text:"단점"}), traitList(p.weaknesses,"trait","tag-bad"))));
+}
+
+function renderOutcome(o){
+  o = o || {};
+  const r = ratioOf(o.ratio);
+  return card("04","성공·실패 요인",
+    el("div",{class:"row",style:"margin-top:0;justify-content:space-between"},
+      el("span",{class:"verdict",text:str(o.verdict)||"판단 불가"}),
+      r ? el("span",{class:"ratio"}, el("span",{class:"meta",text:"성공 요인 대 실패 요인 "}), el("span",{class:"big",text:`${r[0]} 대 ${r[1]}`})) : null),
+    r ? el("div",{class:"bar","aria-hidden":"true"}, el("span",{style:`width:${r[0]*10}%;background:var(--good)`}), el("span",{style:`width:${r[1]*10}%;background:var(--bad)`})) : null,
+    el("div",{class:"cols"},
+      el("div",null, el("h4",{text:"성공 요인"}), traitList(o.successFactors,"factor","tag-good")),
+      el("div",null, el("h4",{text:"실패 요인"}), traitList(o.failureFactors,"factor","tag-bad"))));
+}
+
+function radarSvg(scores){
+  const NS = "http://www.w3.org/2000/svg", W = 440, H = 400, cx = 220, cy = 200, R = 140;
+  const svg = document.createElementNS(NS,"svg");
+  svg.setAttribute("viewBox",`-40 0 ${W+80} ${H}`); svg.setAttribute("role","img");
+  svg.setAttribute("aria-label","인생 육각형 차트: "+scores.map(s=>`${s.label} ${s.score==null?"근거 부족":s.score+"점"}`).join(", "));
+  const mk = (t,a)=>{ const n = document.createElementNS(NS,t); for (const k in a) n.setAttribute(k,a[k]); svg.append(n); return n; };
+  const pt = (i,v)=>{ const ang = -Math.PI/2 + i*Math.PI/3; return [cx + Math.cos(ang)*R*v/10, cy + Math.sin(ang)*R*v/10]; };
+  for (const lv of [2,4,6,8,10]){
+    mk("polygon",{points:HEX.map((_,i)=>pt(i,lv).join(",")).join(" "),fill:"none",stroke:"var(--line)","stroke-width":lv===10?1.5:1});
+    const [x,y] = pt(0,lv); mk("text",{x:x+5,y:y+4,"font-size":10,fill:"var(--muted)","font-family":"IBM Plex Mono, monospace"}).textContent = lv;
+  }
+  HEX.forEach((_,i)=>{ const [x,y]=pt(i,10); mk("line",{x1:cx,y1:cy,x2:x,y2:y,stroke:"var(--line)"}); });
+  const pts = scores.map((s,i)=>pt(i, s.score==null?0:s.score));
+  mk("polygon",{points:pts.map(p=>p.join(",")).join(" "),fill:"var(--accent)","fill-opacity":.18,stroke:"none"});
+  pts.forEach((p,i)=>{ const q = pts[(i+1)%6]; const gap = scores[i].score==null || scores[(i+1)%6].score==null;
+    mk("line",{x1:p[0],y1:p[1],x2:q[0],y2:q[1],stroke:"var(--accent)","stroke-width":2,"stroke-linecap":"round","stroke-dasharray":gap?"4 4":"0"}); });
+  scores.forEach((s,i)=>{
+    const [x,y]=pts[i];
+    mk("circle",{cx:x,cy:y,r:4.5,fill:s.score==null?"var(--paper)":"var(--accent)",stroke:"var(--accent)","stroke-width":2,"stroke-dasharray":s.score==null?"2 2":"0"});
+    const [lx,ly]=pt(i,12.4);
+    const anchor = Math.abs(lx-cx)<4 ? "middle" : lx>cx ? "start" : "end";
+    const t = mk("text",{x:lx,y:ly,"text-anchor":anchor,"font-size":14,fill:"var(--ink)","font-family":"Noto Sans KR, sans-serif","dominant-baseline":"middle"});
+    t.textContent = s.label;
+    const t2 = mk("text",{x:lx,y:ly+17,"text-anchor":anchor,"font-size":12,fill:s.score==null?"var(--warn)":"var(--muted)","font-family":"IBM Plex Mono, monospace","dominant-baseline":"middle"});
+    t2.textContent = s.score==null ? "근거 부족" : s.score+" / 10"+(s.estimated?" 추정":"");
+  });
+  return svg;
+}
+
+function renderHex(hx, src){
+  const byKey = {}; arr(hx).forEach(h=>{ if (h && h.key) byKey[h.key]=h; });
+  const scores = HEX.map(h=>{
+    const v = byKey[h.key] || {}; let s = v.score != null ? Number(v.score) : null;
+    if (s != null && !isFinite(s)) s = null; if (s != null) s = Math.max(1, Math.min(10, Math.round(s)));
+    const quotes = arr(v.quotes).map(q=> typeof q === "string" ? {text:q} : (q && typeof q === "object" ? {text:str(q.text), ko:str(q.ko)} : null))
+      .filter(q=>q && q.text.trim()).map(q=>({...q, found:quoteFound(q.text, src)}));
+    const verified = quotes.filter(q=>q.found !== false).length;
+    const estimated = s != null && (v.estimated === true || verified === 0);
+    const conf = s == null ? null : estimated ? "낮음 (추정)" : verified >= 2 ? "높음" : "중간";
+    return {...h, score:s, reason:str(v.reason), quotes, verified, estimated, conf};
+  });
+  const valid = scores.filter(s=>s.score!=null);
+  const total = valid.length ? (valid.reduce((a,s)=>a+s.score,0)/(valid.length*10)*60).toFixed(1).replace(/\.0$/,"") : null;
+  const c = card("05", MODE==="fiction" ? "인생 육각형 (작중 기준)" : "인생 육각형",
+    MODE==="fiction" ? el("p",{class:"banner",style:"margin:0 0 12px"}, el("span",{class:"stamp",text:"임시안"}), el("span",{text:"가상 인물 기준은 실존 인물용 A안을 작품 속 기준으로 옮긴 것입니다. 항목 이름과 구간 설명은 추정으로 정한 것이며, 아직 확정되지 않았습니다."})) : null,
+    el("div",{class:"hex-wrap"},
+      el("div",null,
+        radarSvg(scores),
+        el("p",{class:"total"}, el("span",{class:"big",text: total ? `${total}` : "—"}), el("span",{class:"meta",text:" / 60점"}),
+          el("span",{class:"meta",text:`  6개 중 ${valid.length}개 채점 · 가중치 1:1:1:1:1:1`}))),
+      el("div",null,
+        el("table",{class:"scores"}, el("tbody",null, scores.map(s=>el("tr",null,
+          el("td",null,
+            el("div",null, s.label, " ", s.conf ? el("span",{class:"pill "+(s.estimated?"c-low":s.conf==="높음"?"c-high":"c-mid"),text:"신뢰도 "+s.conf}) : el("span",{class:"pill c-mid",text:"근거 부족"})),
+            s.reason ? el("div",{class:"why",text:s.reason}) : null,
+            s.quotes.length ? el("ul",{class:"quotes"}, s.quotes.map(q=>el("li",{class:q.found===false?"miss":null}, "“"+q.text+"”", q.found===false ? el("span",{class:"flag",text:" 원문에서 찾지 못함"}) : null, q.ko && q.ko !== q.text ? el("div",{class:"ko",text:"→ "+q.ko}) : null))) : null),
+          el("td",{class:"s"}, s.score==null ? "—" : String(s.score), s.estimated ? el("div",{class:"est",text:"(추정)"}) : null))))),
+        el("details",{class:"rubric"}, el("summary",{text:"6요소와 채점 기준 보기"}),
+          HEX.map(h=>el("div",{class:"rb"}, el("strong",{text:h.label}), el("span",{text:" "+h.desc}),
+            el("dl",null, h.bands.map((b,i)=>[el("dt",{text:BANDS[i]}), el("dd",{text:b})])))),
+          el("p",{text:"신뢰도: 원문 인용 2개 이상은 높음, 1개는 중간, 직접 인용 없이 정황으로 판단하면 낮음 (추정). 인용문은 붙여넣은 본문에 실제로 있는지 페이지가 확인하고, 없으면 '원문에서 찾지 못함'으로 표시해 신뢰도 계산에서 뺍니다. 근거 부족 요소는 점선으로 그리고 총점에서 제외합니다."})))));
+  c.classList.add("span2");
+  return c;
+}
+
+function render(d, isExample, src){
+  setMode(d.__mode);
+  resultEl.replaceChildren();
+  if (isExample) resultEl.append(el("div",{class:"banner"}, el("span",{class:"stamp",text:"예시"}), el("span",{text:"아래는 '예시 본문 넣기'의 짧은 이순신 본문으로 만든 예시 결과입니다. 직접 본문을 붙여넣고 분석하면 바뀝니다."})));
+  const head = el("div",{class:"panel"},
+    el("div",{class:"file-head"}, el("h2",{text:str(d.name)||"이름 미상"}), el("span",{class:"life",text:str(d.lifespan)||(MODE==="fiction"?"작중 생몰·나이 원문에 없음":"생몰년 원문에 없음")})),
+    MODE === "fiction" ? el("p",{class:"meta",style:"margin:8px 0 0",text:"가상 인물 모드 · 작중 서술 기준 분석"}) : null,
+    d.summary ? el("p",{class:"summary",text:str(d.summary)}) : null);
+  const unc = arr(d.uncertain);
+  if (src && isForeign(src)) head.append(transPanel(src, d.sourceLanguage));
+  const g = el("div",{class:"grid"},
+    renderResume(d.resume), renderMbti(d.mbti), renderPersonality(d.personality), renderOutcome(d.outcome), renderHex(d.hexagon, src));
+  if (unc.length){ const u = card("06","원문에 없거나 불확실한 점", el("ul",{class:"plain warnlist"}, unc.map(x=>el("li",{text:str(x)})))); u.classList.add("span2"); g.append(u); }
+  resultEl.append(el("div",{style:"display:grid;gap:20px"}, head, g));
+}
+
+const TRANS_MAX = 12000;
+function transPanel(src, lang){
+  const out = el("div",{class:"trans-out"});
+  const btn = el("button",{type:"button"}, "원문 한국어로 번역");
+  const stop = el("button",{type:"button",hidden:""}, "멈추기");
+  const note = el("span",{class:"meta",text: src.length > TRANS_MAX ? `앞 ${TRANS_MAX.toLocaleString("ko-KR")}자만 번역합니다 (전체 ${src.length.toLocaleString("ko-KR")}자)` : `${src.length.toLocaleString("ko-KR")}자`});
+  let tctl = null;
+  stop.onclick = ()=> tctl && tctl.abort();
+  btn.onclick = async ()=>{
+    if (!$("#apiKey").value.trim()){ out.textContent = ERR.no_key; return; }
+    tctl = new AbortController(); btn.disabled = true; stop.hidden = false; out.textContent = "번역 중입니다...";
+    try{
+      const {truncated} = await sample("다음 글을 자연스러운 한국어로 번역하라. 빠뜨리거나 덧붙이지 말고, 문단 구분을 유지하라. 인명·지명·작품명은 처음 나올 때 한국어 표기 뒤 괄호에 원문 표기를 붙여라. 번역문만 출력하라.\n\n" + src.slice(0, TRANS_MAX),
+        {signal:tctl.signal, onText:({text})=>{ out.textContent = text; }});
+      if (truncated) out.append(el("p",{class:"meta",text:"번역이 길이 제한에 걸려 중간에 끝났습니다."}));
+    }catch(e){
+      out.textContent = (e && e.text) || "";
+      if (!(e && e.code === "cancelled")) out.append(el("p",{class:"status err",text: (ERR[e && e.code] || "번역하지 못했습니다. 다시 눌러 주세요.") + (e && e.detail ? ` (${e.detail})` : "")}));
+    }finally{ btn.disabled = false; stop.hidden = true; }
+  };
+  return el("details",{class:"trans"},
+    el("summary",null, `원문 번역 보기 (원문 언어: ${str(lang) || "한국어 외"})`),
+    el("div",{class:"row"}, btn, stop, note),
+    out);
+}
+function setStatus(t, err){ statusEl.textContent = t; statusEl.classList.toggle("err", !!err); }
+function updateCount(){
+  const n = srcEl.value.length;
+  $("#count").textContent = n.toLocaleString("ko-KR")+"자" + (n > MAX_CHARS ? ` (앞 ${MAX_CHARS.toLocaleString("ko-KR")}자만 분석)` : "");
+}
+function docUrl(){
+  const name = $("#who").value.trim(), lang = $("#lang").value;
+  if (!name) return null;
+  return lang === "namu" ? `https://namu.wiki/w/${encodeURIComponent(name)}` : `https://${lang}.wikipedia.org/w/index.php?search=${encodeURIComponent(name)}`;
+}
+function updateWikiLink(){
+  const name = $("#who").value.trim(), lang = $("#lang").value;
+  if (lang === "namu") $("#wikiLink").href = name ? `https://namu.wiki/w/${encodeURIComponent(name)}` : "https://namu.wiki/";
+  else $("#wikiLink").href = name ? `https://${lang}.wikipedia.org/w/index.php?search=${encodeURIComponent(name)}` : `https://${lang}.wikipedia.org/`;
+}
+$("#who").addEventListener("input", updateWikiLink);
+$("#lang").addEventListener("change", updateWikiLink);
+function selectedMode(){ return $("#modeFic").checked ? "fiction" : "real"; }
+document.querySelectorAll('input[name="mode"]').forEach(r=>r.addEventListener("change", ()=>{
+  if (selectedMode() === "fiction" && $("#lang").value !== "namu"){ $("#lang").value = "namu"; updateWikiLink(); }
+  setStatus(selectedMode() === "fiction" ? "가상 인물 모드입니다. 항목 이름과 채점 기준이 작품 속 기준으로 바뀝니다." : "실존 인물 모드입니다.");
+}));
+$("#who").addEventListener("keydown", e=>{ if (e.key === "Enter") $("#wikiLink").click(); });
+srcEl.addEventListener("input", ()=>{ updateCount(); try{ localStorage.setItem("draft", srcEl.value); }catch(e){} });
+$("#reset").onclick = ()=>{
+  if (ctl) ctl.abort();
+  $("#who").value = ""; srcEl.value = ""; updateCount(); updateWikiLink();
+  try{ localStorage.removeItem("draft"); localStorage.removeItem("last2"); }catch(e){}
+  resultEl.replaceChildren(el("div",{class:"banner"}, el("span",{class:"stamp",text:"빈 칸"}), el("span",{text:"새 인물의 이름을 넣고 본문을 붙여넣은 뒤 '분석하기'를 누르면 결과가 여기에 나옵니다."})));
+  setStatus("이전 본문과 결과를 지웠습니다.");
+  $("#who").focus();
+};
+$("#loadSample").onclick = ()=>{ $("#modeReal").checked = true; srcEl.value = SAMPLE_TEXT; updateCount(); srcEl.focus(); };
+$("#copyPrompt").onclick = async ()=>{
+  setMode(selectedMode());
+  const t = srcEl.value.trim(); if (!t){ setStatus("먼저 본문을 붙여넣어 주세요.", true); return; }
+  const p = buildPrompt(t.slice(0, MAX_CHARS));
+  try { await navigator.clipboard.writeText(p); setStatus("분석 요청문을 복사했습니다. Claude나 Gemini 대화창에 붙여넣으면 같은 형식의 JSON을 받을 수 있습니다."); }
+  catch(e){ srcEl.value = p; srcEl.select(); setStatus("자동 복사가 막혀 입력칸에 요청문을 넣고 선택해 두었습니다. 직접 복사해 주세요.", true); updateCount(); }
+};
+
+const ERR = {
+  no_key:"먼저 위쪽 '0. AI 키 설정'에 API 키를 넣어 주세요. 키가 없으면 '분석 요청문 복사'로 AI 대화창에서 분석할 수 있습니다.",
+  bad_key:"API 키가 올바르지 않거나 권한이 없습니다. 키를 다시 확인해 주세요.",
+  bad_model:"선택한 모델을 찾을 수 없습니다. '키 확인'을 눌러 모델 목록을 다시 불러와 주세요.",
+  billing:"키 계정의 크레딧이나 결제 설정이 부족합니다.",
+  overloaded:"AI 서버가 붐빕니다. 잠시 뒤 다시 눌러 주세요.",
+  truncated:"결과가 길이 제한에 걸려 잘렸습니다. 본문을 줄이거나 다른 모델로 다시 시도해 주세요.",
+  network:"AI 서버에 연결하지 못했습니다. 인터넷 연결이나 브라우저 확장 프로그램(광고 차단 등)을 확인해 주세요.",
+  http:"AI 서버가 오류를 돌려주었습니다.",
+  rate_limited:"요청이 많거나 사용 한도에 닿았습니다. 잠시 뒤 다시 눌러 주세요.",
+  prompt_too_large:"본문이 너무 깁니다. 일부만 붙여넣어 주세요.",
+  refused:"이 본문은 분석이 거절되었습니다. 다른 본문으로 시도해 주세요.",
+  invalid_json:"결과 형식이 깨졌습니다. 다시 눌러 주세요.",
+  empty_completion:"결과가 비어 있습니다. 본문을 줄여 다시 시도해 주세요."
+};
+
+goBtn.onclick = async ()=>{
+  setMode(selectedMode());
+  const t = srcEl.value.trim();
+  if (t.length < 50){ setStatus("인물 본문을 50자 이상 붙여넣어 주세요.", true); return; }
+  if (!$("#apiKey").value.trim()){ setStatus(ERR.no_key, true); $("#apiKey").focus(); return; }
+  saveKeyCfg();
+  ctl = new AbortController();
+  goBtn.disabled = true; stopBtn.hidden = false;
+  setStatus("분석 중입니다. 긴 본문은 1~2분 걸릴 수 있습니다.");
+  try{
+    const d = await sample.json(buildPrompt(t.slice(0, MAX_CHARS)), {
+      signal: ctl.signal,
+      onText: ({text})=> setStatus(`분석 결과를 받는 중입니다 (${text.length.toLocaleString("ko-KR")}자).`)
+    });
+    if (!d || typeof d !== "object") throw {code:"invalid_json"};
+    const used = t.slice(0, MAX_CHARS);
+    d.__mode = MODE;
+    render(d, false, used);
+    try{ localStorage.setItem("last2", JSON.stringify({d, src:used})); }catch(e){}
+    setStatus("분석을 마쳤습니다. 모든 추정은 붙여넣은 본문만 근거로 합니다.");
+    resultEl.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+  }catch(e){
+    if (e && e.code === "cancelled") setStatus("분석을 멈췄습니다.");
+    else setStatus((ERR[e && e.code] || "연결 문제로 분석하지 못했습니다. 다시 눌러 주세요.") + (e && e.detail ? ` (${e.detail})` : ""), true);
+  }finally{ goBtn.disabled = false; stopBtn.hidden = true; }
+};
+stopBtn.onclick = ()=> ctl && ctl.abort();
+
+(function init(){
+  let last = null, draft = "";
+  try{ last = JSON.parse(localStorage.getItem("last2") || "null"); draft = localStorage.getItem("draft") || ""; }catch(e){}
+  if (draft) srcEl.value = draft;
+  updateCount();
+  if (last && last.d && typeof last.d === "object") render(last.d, false, str(last.src)); else render(SAMPLE_RESULT, true, SAMPLE_TEXT);
+  if (MODE === "fiction") $("#modeFic").checked = true;
+  sample = sampleFn;
+  const cfg = loadKeyCfg();
+  let remembered = false; try{ remembered = !!localStorage.getItem(KEY_STORE); }catch(e){}
+  if (cfg && PROVIDERS[cfg.provider]) $("#provider").value = cfg.provider;
+  onProvider(cfg && cfg.model);
+  if (cfg && cfg.key){ $("#apiKey").value = cfg.key; keyStatus(remembered ? "이 기기에 기억된 키를 불러왔습니다." : "이 탭에서 넣은 키를 불러왔습니다."); }
+  $("#rememberKey").checked = remembered;
+  $("#provider").addEventListener("change", ()=>{ onProvider(); $("#apiKey").value = ""; keyStatus(""); saveKeyCfg(); });
+  $("#model").addEventListener("change", saveKeyCfg);
+  $("#apiKey").addEventListener("change", saveKeyCfg);
+  $("#rememberKey").addEventListener("change", ()=>{ saveKeyCfg(); keyStatus($("#rememberKey").checked ? "이 기기에 키를 기억합니다." : "이 기기에서 기억한 키를 지웠습니다. 이 탭을 닫으면 키도 지워집니다."); });
+  $("#showKey").onclick = ()=>{ const i = $("#apiKey"); const show = i.type === "password"; i.type = show ? "text" : "password"; $("#showKey").textContent = show ? "숨기기" : "보기"; };
+  $("#forgetKey").onclick = ()=>{ $("#apiKey").value = ""; $("#rememberKey").checked = false; try{ sessionStorage.removeItem(KEY_STORE); localStorage.removeItem(KEY_STORE); }catch(e){} keyStatus("키를 이 브라우저에서 지웠습니다."); };
+  $("#testKey").onclick = testKey;
+  if (!cfg || !cfg.key) setStatus("분석하려면 먼저 위쪽에 본인의 Gemini 또는 Claude API 키를 넣어 주세요.");
+})();
+</script>
+</body>
+</html>
